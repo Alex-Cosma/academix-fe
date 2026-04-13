@@ -1,0 +1,27 @@
+import type { FieldOfInterest } from "@/types/field"
+
+export const FIELDS_OF_INTEREST: Omit<FieldOfInterest, "id">[] = [
+  { name: "Computer Science", slug: "computer-science", iconName: "cpu" },
+  { name: "Medicine", slug: "medicine", iconName: "heart-pulse" },
+  { name: "Chemistry", slug: "chemistry", iconName: "flask-conical" },
+  { name: "Biology", slug: "biology", iconName: "leaf" },
+  { name: "Materials Science", slug: "materials-science", iconName: "gem" },
+  { name: "Physics", slug: "physics", iconName: "atom" },
+  { name: "Geology", slug: "geology", iconName: "mountain" },
+  { name: "Psychology", slug: "psychology", iconName: "brain" },
+  { name: "Art", slug: "art", iconName: "palette" },
+  { name: "History", slug: "history", iconName: "scroll" },
+  { name: "Geography", slug: "geography", iconName: "globe" },
+  { name: "Sociology", slug: "sociology", iconName: "users" },
+  { name: "Business", slug: "business", iconName: "briefcase" },
+  { name: "Political Science", slug: "political-science", iconName: "landmark" },
+  { name: "Economics", slug: "economics", iconName: "trending-up" },
+  { name: "Philosophy", slug: "philosophy", iconName: "lightbulb" },
+  { name: "Mathematics", slug: "mathematics", iconName: "calculator" },
+  { name: "Engineering", slug: "engineering", iconName: "wrench" },
+  { name: "Environmental Science", slug: "environmental-science", iconName: "trees" },
+  { name: "Agricultural and Food Sciences", slug: "agricultural-and-food-sciences", iconName: "wheat" },
+  { name: "Education", slug: "education", iconName: "graduation-cap" },
+  { name: "Law", slug: "law", iconName: "scale" },
+  { name: "Linguistics", slug: "linguistics", iconName: "languages" },
+]
