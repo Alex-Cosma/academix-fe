@@ -205,7 +205,7 @@ Each of the 23 field slugs maps to a unique HSL color used for the left border o
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080   # Backend API base URL
 NEXTAUTH_SECRET=<random-secret>
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3001
 GOOGLE_CLIENT_ID=<google-oauth-client-id>
 GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
 ```

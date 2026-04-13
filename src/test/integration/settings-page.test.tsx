@@ -188,7 +188,7 @@ describe("Settings Page", () => {
 
     await waitFor(() => {
       expect(capturedInterests).toEqual({
-        interests: expect.arrayContaining([
+        fieldSlugs: expect.arrayContaining([
           "computer-science",
           "physics",
           "mathematics",

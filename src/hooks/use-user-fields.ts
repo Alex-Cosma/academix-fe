@@ -26,7 +26,7 @@ export function useUpdateFields() {
 
   return useMutation<void, Error, string[]>({
     mutationFn: async (fieldSlugs) => {
-      await apiClient.put<void>("/users/me/interests", { interests: fieldSlugs })
+      await apiClient.put<void>("/users/me/interests", { fieldSlugs })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-profile"] })

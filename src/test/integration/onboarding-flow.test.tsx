@@ -108,7 +108,7 @@ describe("Onboarding Flow", () => {
     // Wait for the API call to complete and navigation to happen
     await vi.waitFor(() => {
       expect(capturedBody).toEqual({
-        fieldIds: ["computer-science", "physics", "mathematics"],
+        fieldSlugs: ["computer-science", "physics", "mathematics"],
       })
     })
 

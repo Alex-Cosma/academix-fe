@@ -23,7 +23,7 @@ export default function OnboardingPage() {
     setIsSubmitting(true)
     try {
       await apiClient.put("/users/me/interests", {
-        fieldIds: selectedFields,
+        fieldSlugs: selectedFields,
       })
       router.push("/feed")
     } catch (error) {
