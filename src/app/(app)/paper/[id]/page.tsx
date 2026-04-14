@@ -1,8 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { usePaperDetail, usePaperSummaries, useToggleBookmark } from "@/hooks/use-papers"
+import { usePaperProgress } from "@/hooks/use-quiz"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { ErrorBoundaryFallback } from "@/components/error-boundary"
+import { QuizDialog } from "@/components/quiz/quiz-dialog"
+import { ProgressIndicator } from "@/components/quiz/progress-indicator"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -16,7 +20,7 @@ import {
 } from "@/components/ui/accordion"
 import { getFieldColor } from "@/config/field-colors"
 import { FIELDS_OF_INTEREST } from "@/config/fields-of-interest"
-import type { PaperSummary, SummaryLevel } from "@/types/paper"
+import type { PaperSummary, SummaryLevel, LevelProgress } from "@/types/paper"
 import {
   ArrowLeft,
   Bookmark,
@@ -26,29 +30,51 @@ import {
   Quote,
   BookOpen,
   AlertCircle,
+  Lock,
+  GraduationCap,
 } from "lucide-react"
 import Link from "next/link"
 
 const SUMMARY_LEVEL_LABELS: Record<SummaryLevel, string> = {
-  1: "Child",
-  2: "High School",
-  3: "Graduate",
-  4: "Expert",
+  1: "Foundation",
+  2: "Context",
+  3: "Mechanics",
+  4: "Mastery",
 }
 
 const SUMMARY_LEVEL_DESCRIPTIONS: Record<SummaryLevel, string> = {
-  1: "Simple enough for a child to understand",
-  2: "Explained at a high school level",
-  3: "Graduate-level depth and terminology",
-  4: "Full expert-level detail",
+  1: "What did they find? Core discovery in plain language",
+  2: "Why does this matter? History, significance, impact",
+  3: "How did they do it? Methodology and experiments",
+  4: "Full picture: statistics, limitations, comparisons",
 }
 
-function SummaryContent({ summary }: { summary?: PaperSummary }) {
+function SummaryContent({
+  summary,
+  levelProgress,
+  onTakeQuiz,
+}: {
+  summary?: PaperSummary
+  levelProgress?: LevelProgress
+  onTakeQuiz?: () => void
+}) {
   if (!summary) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
         Summary not available yet.
       </p>
+    )
+  }
+
+  if (summary.locked) {
+    const prevLevel = (summary.level - 1) as SummaryLevel
+    return (
+      <div className="flex flex-col items-center gap-3 py-8">
+        <Lock className="h-8 w-8 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground text-center">
+          Pass the {SUMMARY_LEVEL_LABELS[prevLevel]} quiz to unlock this level
+        </p>
+      </div>
     )
   }
 
@@ -73,41 +99,94 @@ function SummaryContent({ summary }: { summary?: PaperSummary }) {
   }
 
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none py-4">
-      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-        <BookOpen className="h-3.5 w-3.5" />
-        <span>{summary.readingTimeMinutes} min read</span>
+    <div className="py-4">
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <BookOpen className="h-3.5 w-3.5" />
+          <span>{summary.readingTimeMinutes} min read</span>
+        </div>
+        <div className="font-serif leading-relaxed whitespace-pre-wrap">
+          {summary.content}
+        </div>
       </div>
-      <div className="font-serif leading-relaxed whitespace-pre-wrap">
-        {summary.content}
-      </div>
+
+      {/* Take Quiz button */}
+      {levelProgress?.quizAvailable && !levelProgress.completed && (
+        <Button
+          onClick={onTakeQuiz}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        >
+          <GraduationCap className="mr-2 h-4 w-4" />
+          Take Quiz
+        </Button>
+      )}
+
+      {levelProgress?.completed && (
+        <div className="mt-4 flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+          <GraduationCap className="h-4 w-4" />
+          <span>
+            Quiz passed ({Math.round((levelProgress.score ?? 0) * 100)}%) &middot; +{levelProgress.xpEarned} XP
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
-function SummaryTabs({ summaries }: { summaries?: PaperSummary[] }) {
+function SummaryTabs({
+  summaries,
+  progress,
+  onTakeQuiz,
+}: {
+  summaries?: PaperSummary[]
+  progress?: LevelProgress[]
+  onTakeQuiz: (level: number, levelName: string) => void
+}) {
   const isDesktop = useMediaQuery("(min-width: 768px)")
   const levels: SummaryLevel[] = [1, 2, 3, 4]
 
   const getSummary = (level: SummaryLevel) =>
     summaries?.find((s) => s.level === level)
 
+  const getLevelProgress = (level: SummaryLevel) =>
+    progress?.find((p) => p.level === level)
+
   if (isDesktop) {
     return (
       <Tabs defaultValue="1">
         <TabsList className="w-full justify-start">
-          {levels.map((level) => (
-            <TabsTrigger key={level} value={String(level)} className="flex-1">
-              {SUMMARY_LEVEL_LABELS[level]}
-            </TabsTrigger>
-          ))}
+          {levels.map((level) => {
+            const lp = getLevelProgress(level)
+            const summary = getSummary(level)
+            const isLocked = summary?.locked ?? false
+            return (
+              <TabsTrigger
+                key={level}
+                value={String(level)}
+                className="flex-1 gap-1.5"
+                disabled={isLocked}
+              >
+                {isLocked && <Lock className="h-3 w-3" />}
+                {SUMMARY_LEVEL_LABELS[level]}
+                {lp?.completed && (
+                  <span className="ml-1 text-green-500">&#10003;</span>
+                )}
+              </TabsTrigger>
+            )
+          })}
         </TabsList>
         {levels.map((level) => (
           <TabsContent key={level} value={String(level)}>
             <p className="text-xs text-muted-foreground mt-2">
               {SUMMARY_LEVEL_DESCRIPTIONS[level]}
             </p>
-            <SummaryContent summary={getSummary(level)} />
+            <SummaryContent
+              summary={getSummary(level)}
+              levelProgress={getLevelProgress(level)}
+              onTakeQuiz={() => onTakeQuiz(level, SUMMARY_LEVEL_LABELS[level])}
+            />
           </TabsContent>
         ))}
       </Tabs>
@@ -117,19 +196,37 @@ function SummaryTabs({ summaries }: { summaries?: PaperSummary[] }) {
   // Mobile: accordion
   return (
     <Accordion type="single" collapsible defaultValue="1">
-      {levels.map((level) => (
-        <AccordionItem key={level} value={String(level)}>
-          <AccordionTrigger>
-            {SUMMARY_LEVEL_LABELS[level]}
-          </AccordionTrigger>
-          <AccordionContent>
-            <p className="mb-2 text-xs text-muted-foreground">
-              {SUMMARY_LEVEL_DESCRIPTIONS[level]}
-            </p>
-            <SummaryContent summary={getSummary(level)} />
-          </AccordionContent>
-        </AccordionItem>
-      ))}
+      {levels.map((level) => {
+        const lp = getLevelProgress(level)
+        const summary = getSummary(level)
+        const isLocked = summary?.locked ?? false
+
+        return (
+          <AccordionItem key={level} value={String(level)}>
+            <AccordionTrigger className={isLocked ? "opacity-50" : ""}>
+              <span className="flex items-center gap-1.5">
+                {isLocked && <Lock className="h-3 w-3" />}
+                {SUMMARY_LEVEL_LABELS[level]}
+                {lp?.completed && (
+                  <span className="ml-1 text-green-500">&#10003;</span>
+                )}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {SUMMARY_LEVEL_DESCRIPTIONS[level]}
+              </p>
+              <SummaryContent
+                summary={getSummary(level)}
+                levelProgress={getLevelProgress(level)}
+                onTakeQuiz={() =>
+                  onTakeQuiz(level, SUMMARY_LEVEL_LABELS[level])
+                }
+              />
+            </AccordionContent>
+          </AccordionItem>
+        )
+      })}
     </Accordion>
   )
 }
@@ -170,6 +267,12 @@ export default function PaperDetailPage({
 }: {
   params: { id: string }
 }) {
+  const [quizOpen, setQuizOpen] = useState(false)
+  const [quizLevel, setQuizLevel] = useState<{
+    level: number
+    name: string
+  } | null>(null)
+
   const {
     data: paper,
     isLoading,
@@ -178,10 +281,10 @@ export default function PaperDetailPage({
     refetch,
   } = usePaperDetail(params.id)
 
-  const {
-    data: summaries,
-    isLoading: isSummariesLoading,
-  } = usePaperSummaries(params.id)
+  const { data: summaries, isLoading: isSummariesLoading } =
+    usePaperSummaries(params.id)
+
+  const { data: progressData } = usePaperProgress(params.id)
 
   const toggleBookmark = useToggleBookmark()
 
@@ -191,6 +294,11 @@ export default function PaperDetailPage({
       paperId: paper.id,
       isBookmarked: paper.isBookmarked,
     })
+  }
+
+  const handleTakeQuiz = (level: number, levelName: string) => {
+    setQuizLevel({ level, name: levelName })
+    setQuizOpen(true)
   }
 
   if (isLoading) {
@@ -333,20 +441,45 @@ export default function PaperDetailPage({
         </section>
       )}
 
+      {/* Progress indicator */}
+      {progressData && (
+        <div className="mb-4">
+          <ProgressIndicator levels={progressData.levels} />
+          {progressData.totalXpEarned > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {progressData.totalXpEarned} XP earned on this paper
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Summaries */}
       <section>
-        <h2 className="mb-4 text-lg font-semibold">
-          AI Summaries
-        </h2>
+        <h2 className="mb-4 text-lg font-semibold">AI Summaries</h2>
         {isSummariesLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-32 w-full" />
           </div>
         ) : (
-          <SummaryTabs summaries={summaries} />
+          <SummaryTabs
+            summaries={summaries}
+            progress={progressData?.levels}
+            onTakeQuiz={handleTakeQuiz}
+          />
         )}
       </section>
+
+      {/* Quiz dialog */}
+      {quizLevel && (
+        <QuizDialog
+          open={quizOpen}
+          onOpenChange={setQuizOpen}
+          paperId={params.id}
+          level={quizLevel.level}
+          levelName={quizLevel.name}
+        />
+      )}
     </main>
   )
 }

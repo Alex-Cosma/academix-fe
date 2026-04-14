@@ -13,7 +13,7 @@ import { setupServer } from "msw/node"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createElement, type ReactNode } from "react"
 import PaperDetailPage from "@/app/(app)/paper/[id]/page"
-import type { PaperDetail, PaperSummary } from "@/types/paper"
+import type { PaperDetail, PaperSummary, PaperProgress } from "@/types/paper"
 
 // --- Mocks ---
 vi.mock("next/navigation", () => ({
@@ -78,36 +78,58 @@ const mockPaper: PaperDetail = {
 
 const mockSummaries: PaperSummary[] = [
   {
+    id: 1,
+    paperId: 42,
     level: 1,
-    title: "Child",
+    title: "Foundation",
     content: "This paper talks about how computers learn to read.",
     status: "COMPLETED",
     readingTimeMinutes: 2,
+    locked: false,
   },
   {
+    id: 2,
+    paperId: 42,
     level: 2,
-    title: "High School",
+    title: "Context",
     content:
       "Transformers use attention mechanisms to process sequences in parallel.",
     status: "COMPLETED",
     readingTimeMinutes: 5,
+    locked: true,
   },
   {
+    id: 3,
+    paperId: 42,
     level: 3,
-    title: "Graduate",
-    content:
-      "The multi-head self-attention mechanism enables capturing long-range dependencies.",
-    status: "PENDING",
-    readingTimeMinutes: 10,
-  },
-  {
-    level: 4,
-    title: "Expert",
-    content: "",
+    title: "Mechanics",
+    content: null,
     status: "PENDING",
     readingTimeMinutes: 0,
+    locked: true,
+  },
+  {
+    id: 4,
+    paperId: 42,
+    level: 4,
+    title: "Mastery",
+    content: null,
+    status: "PENDING",
+    readingTimeMinutes: 0,
+    locked: true,
   },
 ]
+
+const mockProgress: PaperProgress = {
+  paperId: 42,
+  levels: [
+    { level: 1, levelName: "Foundation", unlocked: true, quizAvailable: true, completed: false, score: null, xpEarned: 0, attempts: 0, completedAt: null },
+    { level: 2, levelName: "Context", unlocked: false, quizAvailable: false, completed: false, score: null, xpEarned: 0, attempts: 0, completedAt: null },
+    { level: 3, levelName: "Mechanics", unlocked: false, quizAvailable: false, completed: false, score: null, xpEarned: 0, attempts: 0, completedAt: null },
+    { level: 4, levelName: "Mastery", unlocked: false, quizAvailable: false, completed: false, score: null, xpEarned: 0, attempts: 0, completedAt: null },
+  ],
+  totalXpEarned: 0,
+}
 
 // --- MSW Server ---
 const server = setupServer(
@@ -116,6 +138,9 @@ const server = setupServer(
   }),
   http.get("http://localhost:8080/api/papers/paper-42/summaries", () => {
     return HttpResponse.json(mockSummaries)
+  }),
+  http.get("http://localhost:8080/api/papers/paper-42/progress", () => {
+    return HttpResponse.json(mockProgress)
   })
 )
 
@@ -255,25 +280,28 @@ describe("Paper Detail Page", () => {
     renderPaperDetail()
 
     await waitFor(() => {
-      expect(screen.getByText("Child")).toBeInTheDocument()
+      expect(screen.getAllByText(/Foundation/).length).toBeGreaterThanOrEqual(1)
     })
 
-    expect(screen.getByText("High School")).toBeInTheDocument()
-    expect(screen.getByText("Graduate")).toBeInTheDocument()
-    expect(screen.getByText("Expert")).toBeInTheDocument()
+    expect(screen.getAllByText(/Context/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/Mechanics/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/Mastery/).length).toBeGreaterThanOrEqual(1)
   })
 
   it("shows 'Summary being generated' for PENDING summaries", async () => {
-    // Override to return only PENDING summaries
+    // Override to return only PENDING unlocked summary
     server.use(
       http.get("http://localhost:8080/api/papers/paper-42/summaries", () => {
         return HttpResponse.json([
           {
+            id: 1,
+            paperId: 42,
             level: 1,
-            title: "Child",
-            content: "",
+            title: "Foundation",
+            content: null,
             status: "PENDING",
             readingTimeMinutes: 0,
+            locked: false,
           },
         ])
       })
