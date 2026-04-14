@@ -3,12 +3,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 
+interface FieldOfStudyDto {
+  id: number
+  name: string
+  slug: string
+  iconName?: string
+}
+
 interface UserProfile {
   id: string
-  name: string
+  displayName: string
   email: string
-  image?: string
-  interests: string[]
+  avatarUrl?: string
+  interests: FieldOfStudyDto[]
   onboardingComplete: boolean
 }
 

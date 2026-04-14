@@ -66,7 +66,7 @@ export default function SettingsPage() {
   // Initialize selected fields from user profile
   useEffect(() => {
     if (userProfile?.interests && !isFieldsInitialized) {
-      setSelectedFields(userProfile.interests)
+      setSelectedFields(userProfile.interests.map((f) => f.slug))
       setIsFieldsInitialized(true)
     }
   }, [userProfile?.interests, isFieldsInitialized])
@@ -118,7 +118,7 @@ export default function SettingsPage() {
   const hasChanges =
     isFieldsInitialized &&
     JSON.stringify([...selectedFields].sort()) !==
-      JSON.stringify([...(userProfile?.interests ?? [])].sort())
+      JSON.stringify([...(userProfile?.interests?.map((f) => f.slug) ?? [])].sort())
 
   if (isError) {
     return (

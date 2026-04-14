@@ -22,7 +22,7 @@ export default function FeedPage() {
   const initializedRef = useRef(false)
   useEffect(() => {
     if (userProfile?.interests && !initializedRef.current) {
-      setActiveFields(userProfile.interests)
+      setActiveFields(userProfile.interests.map((f) => f.slug))
       initializedRef.current = true
     }
   }, [userProfile?.interests, setActiveFields])
@@ -69,7 +69,7 @@ export default function FeedPage() {
 
   // User's interest fields for filter chips
   const userInterestFields = FIELDS_OF_INTEREST.filter(
-    (f) => userProfile?.interests?.includes(f.slug)
+    (f) => userProfile?.interests?.some((i) => i.slug === f.slug)
   )
 
   const toggleSort = () => {

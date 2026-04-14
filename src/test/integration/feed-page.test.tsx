@@ -76,9 +76,12 @@ const makePaper = (
 
 const userProfile = {
   id: "user-1",
-  name: "Test User",
+  displayName: "Test User",
   email: "test@example.com",
-  interests: ["computer-science", "physics"],
+  interests: [
+    { id: 1, name: "Computer Science", slug: "computer-science", iconName: null },
+    { id: 2, name: "Physics", slug: "physics", iconName: null },
+  ],
   onboardingComplete: true,
 }
 

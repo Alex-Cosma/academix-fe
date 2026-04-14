@@ -40,10 +40,14 @@ vi.mock("next-auth/react", () => ({
 // --- Test data ---
 const userProfile = {
   id: "user-1",
-  name: "Jane Researcher",
+  displayName: "Jane Researcher",
   email: "jane@university.edu",
-  image: "https://example.com/avatar.jpg",
-  interests: ["computer-science", "physics", "mathematics"],
+  avatarUrl: "https://example.com/avatar.jpg",
+  interests: [
+    { id: 1, name: "Computer Science", slug: "computer-science", iconName: null },
+    { id: 2, name: "Physics", slug: "physics", iconName: null },
+    { id: 3, name: "Mathematics", slug: "mathematics", iconName: null },
+  ],
   onboardingComplete: true,
 }
 
