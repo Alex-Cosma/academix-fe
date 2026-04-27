@@ -109,6 +109,13 @@ body {
   to { opacity: 1; }
 }
 
+/* ── Cluster Labels ────────────────────────────── */
+.cluster-label {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 0 16px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ── Legend ──────────────────────────────────────── */
 .legend {
   position: fixed;
@@ -423,6 +430,35 @@ body {
   text-align: center;
   color: #e74c3c;
   font-size: 13px;
+}
+
+/* ── Zoom Limit Overlay ────────────────────────── */
+.zoom-limit-overlay {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 12px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  animation: fadeInOverlay 0.3s ease-out;
+}
+
+.zoom-limit-overlay p {
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
+  margin: 0;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ── Quiz Dialog ───────────────────────────────── */

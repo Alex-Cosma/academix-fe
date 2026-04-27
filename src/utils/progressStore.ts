@@ -1,7 +1,8 @@
-import { NodeProgress, NodeProgressMap, TechEdge } from '../types'
+import { NodeProgress, NodeProgressMap, TechEdge, TechNode, Category, CATEGORY_ORDER, CLUSTER_CENTER_NODES } from '../types'
 
 const STORAGE_KEY_PREFIX = 'techtree_progress_'
 const OLD_STORAGE_KEY_PREFIX = 'techtree_unlocked_'
+const LAST_NODE_KEY_PREFIX = 'techtree_lastnode_'
 
 const DEFAULT_PROGRESS: NodeProgress = {
   completedLevels: 0,
@@ -52,36 +53,119 @@ export function getProgressMap(userId: string): NodeProgressMap {
   return initial
 }
 
-/** Nodes the user has unlocked: fire (always) + any node whose parent has completedLevels >= 2 */
-export function getUnlockedNodeIds(progressMap: NodeProgressMap, edges: TechEdge[]): Set<string> {
-  const unlocked = new Set<string>(['fire'])
+/** Split edges into intra-cluster (same category) and cross-cluster */
+export function partitionEdges(
+  edges: TechEdge[],
+  nodes: TechNode[],
+): { intraEdges: TechEdge[]; crossEdges: TechEdge[] } {
+  const nodeCategory = new Map(nodes.map(n => [n.id, n.category]))
+  const intraEdges: TechEdge[] = []
+  const crossEdges: TechEdge[] = []
+  for (const e of edges) {
+    if (nodeCategory.get(e.source) === nodeCategory.get(e.target)) {
+      intraEdges.push(e)
+    } else {
+      crossEdges.push(e)
+    }
+  }
+  return { intraEdges, crossEdges }
+}
 
-  // Any node in progressMap with completedLevels >= 0 that was explicitly added is "known"
-  // But unlock logic: a node is unlocked if it's fire, OR if any of its parents has >= 2 completed levels
-  for (const edge of edges) {
-    const parentProgress = progressMap[edge.source]
-    if (parentProgress && parentProgress.completedLevels >= 2) {
-      unlocked.add(edge.target)
+/** Fraction of nodes per category with >= 2 completed quiz levels */
+export function getClusterProgress(
+  progressMap: NodeProgressMap,
+  nodes: TechNode[],
+): Map<Category, number> {
+  const countByCategory = new Map<Category, number>()
+  const masteredByCategory = new Map<Category, number>()
+
+  for (const node of nodes) {
+    countByCategory.set(node.category, (countByCategory.get(node.category) ?? 0) + 1)
+    const progress = progressMap[node.id]
+    if (progress && progress.completedLevels >= 2) {
+      masteredByCategory.set(node.category, (masteredByCategory.get(node.category) ?? 0) + 1)
     }
   }
 
-  // Also add fire and any node already in progressMap (handles migration)
-  for (const nodeId of Object.keys(progressMap)) {
-    if (progressMap[nodeId].completedLevels >= 2) {
-      // This node is "mastered enough" — make sure it's unlocked
-      unlocked.add(nodeId)
-      // Also unlock its children
-      for (const edge of edges) {
-        if (edge.source === nodeId) {
-          unlocked.add(edge.target)
-        }
+  const result = new Map<Category, number>()
+  for (const [cat, total] of countByCategory) {
+    result.set(cat, (masteredByCategory.get(cat) ?? 0) / total)
+  }
+  return result
+}
+
+/** Which clusters are unlocked — prehistoric always; subsequent unlock when previous >= 0.80, strict chain */
+export function getUnlockedClusterIds(
+  clusterProgress: Map<Category, number>,
+): Set<Category> {
+  const unlocked = new Set<Category>(['prehistoric'])
+  for (let i = 1; i < CATEGORY_ORDER.length; i++) {
+    const prev = CATEGORY_ORDER[i - 1]
+    if ((clusterProgress.get(prev) ?? 0) >= 0.80) {
+      unlocked.add(CATEGORY_ORDER[i])
+    } else {
+      break // strict chain — break at first miss
+    }
+  }
+  return unlocked
+}
+
+/** Nodes in a category with no intra-cluster parents (root nodes) */
+export function getClusterRootNodes(
+  category: Category,
+  nodes: TechNode[],
+  intraEdges: TechEdge[],
+): string[] {
+  const categoryNodeIds = new Set(nodes.filter(n => n.category === category).map(n => n.id))
+  const hasIntraParent = new Set<string>()
+  for (const e of intraEdges) {
+    if (categoryNodeIds.has(e.target) && categoryNodeIds.has(e.source)) {
+      hasIntraParent.add(e.target)
+    }
+  }
+  return [...categoryNodeIds].filter(id => !hasIntraParent.has(id))
+}
+
+/** Nodes the user has unlocked — cluster-aware: center auto-unlocks when cluster unlocks,
+ *  then intra-edges propagate (parent ≥2 levels → children). */
+export function getUnlockedNodeIds(
+  progressMap: NodeProgressMap,
+  intraEdges: TechEdge[],
+  nodes: TechNode[],
+  unlockedClusters: Set<Category>,
+): Set<string> {
+  const unlocked = new Set<string>()
+
+  // Auto-unlock center node of each unlocked cluster
+  for (const cat of unlockedClusters) {
+    const centerNodeId = CLUSTER_CENTER_NODES[cat]
+    if (centerNodeId) {
+      unlocked.add(centerNodeId)
+    }
+  }
+
+  // Edge propagation via intra-edges only: parent with >= 2 completed levels → children unlock
+  // Iterate until stable (handles transitive chains)
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const edge of intraEdges) {
+      if (unlocked.has(edge.target)) continue
+      const parentProgress = progressMap[edge.source]
+      if (unlocked.has(edge.source) && parentProgress && parentProgress.completedLevels >= 2) {
+        unlocked.add(edge.target)
+        changed = true
       }
     }
   }
 
-  // Always ensure nodes in progressMap are at least accessible
+  // Nodes already in progressMap stay accessible (handles migration)
   for (const nodeId of Object.keys(progressMap)) {
-    unlocked.add(nodeId)
+    // Only keep nodes that belong to unlocked clusters
+    const node = nodes.find(n => n.id === nodeId)
+    if (node && unlockedClusters.has(node.category)) {
+      unlocked.add(nodeId)
+    }
   }
 
   return unlocked
@@ -96,6 +180,14 @@ export function getLockedNeighborIds(unlockedIds: Set<string>, edges: TechEdge[]
     }
   }
   return locked
+}
+
+export function getLastInteractedNodeId(userId: string): string | null {
+  return localStorage.getItem(LAST_NODE_KEY_PREFIX + userId)
+}
+
+export function setLastInteractedNodeId(userId: string, nodeId: string): void {
+  localStorage.setItem(LAST_NODE_KEY_PREFIX + userId, nodeId)
 }
 
 /** Complete a quiz level for a node, returns updated progress map */

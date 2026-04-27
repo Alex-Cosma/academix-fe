@@ -1,12 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { TechNode, TechEdge, SimNode, NodeProgressMap } from '../types'
 import { fetchNodes, fetchEdges } from '../utils/api'
-import { getProgressMap, getUnlockedNodeIds, getLockedNeighborIds, completeLevel } from '../utils/progressStore'
+import { getProgressMap, getUnlockedNodeIds, getLockedNeighborIds, completeLevel, getLastInteractedNodeId, setLastInteractedNodeId, getClusterProgress, getUnlockedClusterIds, partitionEdges } from '../utils/progressStore'
 import { useAuth } from '../contexts/AuthContext'
 import Graph from '../components/Graph'
 import NodeDetail from '../components/NodeDetail'
-import SearchBar from '../components/SearchBar'
-import Legend from '../components/Legend'
 import QuizDialog from '../components/QuizDialog'
 
 export default function MainPage() {
@@ -14,13 +12,14 @@ export default function MainPage() {
   const [allNodes, setAllNodes] = useState<TechNode[]>([])
   const [allEdges, setAllEdges] = useState<TechEdge[]>([])
   const [selectedNode, setSelectedNode] = useState<SimNode | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [quizNodeId, setQuizNodeId] = useState<string | null>(null)
   const [progressMap, setProgressMap] = useState<NodeProgressMap>({})
+  const [zoomAtLimit, setZoomAtLimit] = useState(false)
 
   const userId = user?.id ?? 'anonymous'
+  const [initialFocusNodeId] = useState(() => getLastInteractedNodeId(userId))
 
   useEffect(() => {
     Promise.all([fetchNodes(), fetchEdges()])
@@ -37,27 +36,37 @@ export default function MainPage() {
     setProgressMap(getProgressMap(userId))
   }, [userId])
 
+  const clusterProgress = useMemo(
+    () => getClusterProgress(progressMap, allNodes),
+    [progressMap, allNodes]
+  )
+
+  const unlockedClusters = useMemo(
+    () => getUnlockedClusterIds(clusterProgress),
+    [clusterProgress]
+  )
+
+  const { intraEdges } = useMemo(
+    () => partitionEdges(allEdges, allNodes),
+    [allEdges, allNodes]
+  )
+
   const unlockedIds = useMemo(
-    () => getUnlockedNodeIds(progressMap, allEdges),
-    [progressMap, allEdges]
+    () => getUnlockedNodeIds(progressMap, intraEdges, allNodes, unlockedClusters),
+    [progressMap, intraEdges, allNodes, unlockedClusters]
   )
 
   const lockedNeighborIds = useMemo(
-    () => getLockedNeighborIds(unlockedIds, allEdges),
-    [unlockedIds, allEdges]
+    () => getLockedNeighborIds(unlockedIds, intraEdges),
+    [unlockedIds, intraEdges]
   )
 
-  // Visible nodes = unlocked + locked neighbors
-  const visibleNodes = useMemo(
-    () => allNodes.filter(n => unlockedIds.has(n.id) || lockedNeighborIds.has(n.id)),
-    [allNodes, unlockedIds, lockedNeighborIds]
-  )
-
-  // Visible edges = edges where both endpoints are visible
-  const visibleEdges = useMemo(() => {
-    const visibleIds = new Set([...unlockedIds, ...lockedNeighborIds])
-    return allEdges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
-  }, [allEdges, unlockedIds, lockedNeighborIds])
+  const handleSelectNode = useCallback((node: SimNode | null) => {
+    setSelectedNode(node)
+    if (node) {
+      setLastInteractedNodeId(userId, node.id)
+    }
+  }, [userId])
 
   const handleStartQuiz = useCallback((nodeId: string) => {
     setQuizNodeId(nodeId)
@@ -73,6 +82,10 @@ export default function MainPage() {
     () => allNodes.find(n => n.id === quizNodeId) ?? null,
     [allNodes, quizNodeId]
   )
+
+  const handleZoomLimitReached = useCallback((atLimit: boolean) => {
+    setZoomAtLimit(atLimit)
+  }, [])
 
   if (loading) {
     return (
@@ -97,7 +110,6 @@ export default function MainPage() {
       <header className="header">
         <h1>TechTree</h1>
         <span className="subtitle">The History of Human Innovation</span>
-        <SearchBar query={searchQuery} onChange={setSearchQuery} />
         <div className="user-menu">
           {user?.avatarUrl && (
             <img src={user.avatarUrl} alt="" className="user-avatar" referrerPolicy="no-referrer" />
@@ -107,15 +119,24 @@ export default function MainPage() {
         </div>
       </header>
       <Graph
-        nodes={visibleNodes}
-        edges={visibleEdges}
-        searchQuery={searchQuery}
+        nodes={allNodes}
+        edges={intraEdges}
+        searchQuery=""
         selectedNodeId={selectedNode?.id ?? null}
-        onSelectNode={setSelectedNode}
-        lockedNodeIds={lockedNeighborIds}
+        onSelectNode={handleSelectNode}
+        unlockedIds={unlockedIds}
+        lockedNeighborIds={lockedNeighborIds}
         nodeProgressMap={progressMap}
+        onZoomLimitReached={handleZoomLimitReached}
+        initialFocusNodeId={initialFocusNodeId}
+        clusterProgress={clusterProgress}
+        unlockedClusters={unlockedClusters}
       />
-      <Legend />
+      {zoomAtLimit && (
+        <div className="zoom-limit-overlay">
+          <p>Pan in any direction to explore more</p>
+        </div>
+      )}
       {selectedNode && (
         <NodeDetail
           node={selectedNode}
